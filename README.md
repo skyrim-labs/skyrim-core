@@ -4,8 +4,6 @@
 
 Skyrim Finance is the First Multichain Decentralized Structured Finance Marketplace. Skyrim Finance aims to build the Robo-Advisor of the DeFi ecosystem. The objective of Skyrim Finance is to help investors of different profiles have risk-adjusted returns through fixed-rate and leveraged-yield DeFi products.
 
-
-
 ## Overview
 
 The DeFi market consists of two types of DeFi investors. We aim to create a blended product that fits  between these two target markets, so that participants can have a single touch hedged approach to DeFi.
