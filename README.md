@@ -15,7 +15,7 @@ The objective of Skyrim Finance is to help investors of different profiles have 
 
 ## Technical Architecture
 <div align="center">
-<img src=https://github.com/skyrim-labs/skyrim-core/blob/main/Skyrim%20Finance.png width=60% />
+<img src=https://github.com/skyrim-labs/skyrim-core/blob/main/Skyrim%20Finance.png width=80% />
 </div>
 
 ## BSC-Testnet Contract Address
