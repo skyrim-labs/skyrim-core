@@ -8,8 +8,8 @@ Skyrim Finance is the First Multichain Decentralized Structured Finance Marketpl
 
 The DeFi market consists of two types of DeFi investors. We aim to create a blended product that fits  between these two target markets, so that participants can have a single touch hedged approach to DeFi.
 
-Fixed-rate APY: There are many crypto holders seeking for the fixed-rate APY without standard risk.
-Leveraged APY: There are many yield farmers seeking higher yield farming APY with high leverage.
+- Fixed-rate APY: There are many crypto holders seeking for the fixed-rate APY without standard risk.
+- Leveraged APY: There are many yield farmers seeking higher yield farming APY with high leverage.
 
 The objective of Skyrim Finance is to help investors of different profiles have risk-adjusted return through fixed-rate and leveraged-yield DeFi products.
 
