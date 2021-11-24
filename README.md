@@ -14,12 +14,9 @@ The DeFi market consists of two types of DeFi investors. We aim to create a blen
 The objective of Skyrim Finance is to help investors of different profiles have risk-adjusted return through fixed-rate and leveraged-yield DeFi products.
 
 ## Technical Architecture
-
+<div align="center">
 <img src=https://github.com/skyrim-labs/skyrim-core/blob/main/Skyrim%20Finance.png width=60% />
-
-[![](https://github.com/skyrim-labs/skyrim-core/blob/main/Skyrim%20Finance.png
-)](https://www.skyrim.finance)
-
+</div>
 
 ## BSC-Testnet Contract Address
 
