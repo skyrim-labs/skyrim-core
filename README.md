@@ -13,6 +13,10 @@ The DeFi market consists of two types of DeFi investors. We aim to create a blen
 
 The objective of Skyrim Finance is to help investors of different profiles have risk-adjusted return through fixed-rate and leveraged-yield DeFi products.
 
+## Technical Architecture
+
+
+
 
 ## BSC-Testnet Contract Address:
 
@@ -48,7 +52,7 @@ The objective of Skyrim Finance is to help investors of different profiles have 
 </table>
 
 
-## Contact Us
+## Additional Links
 
 - Telegram: https://t.me/skyrimfinance
 - Twitter: https://twitter.com/SkyrimFinance
