@@ -15,7 +15,7 @@ interface ISkyrimInvestVault {
     function lockTime() external view returns (uint256);
     function startTime() external view returns (uint256);
     function seniorTokenSupplyRate() external view returns (uint256);
-    function JTSupplyRatesPerPeriod(uint256 when) external view returns (uint256);
+    function JTSupplyRatesPerPeriod() external view returns (uint256);
     function hasBurnedAll(uint256 tokenType, address who) external view returns (bool);
     function burnedTRARate(uint256 tokenType, uint256 when) external view returns (uint256);
     function TRAPricePerPeriod(uint256 tokenType, uint256 when) external view returns (uint256);
