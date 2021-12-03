@@ -117,12 +117,8 @@ contract SkyrimData {
     }
 
     function remainningTime() external view returns(uint256) {
-        uint256 currentPeriod = vault.getCurrentPeriod();
         uint256 lockTime = vault.lockTime();
         uint256 startTime = vault.startTime();
-        if (currentPeriod > vault.period()) {
-            return 0;
-        }
         return lockTime - (block.timestamp - startTime) % lockTime;
     }
 
@@ -137,8 +133,7 @@ contract SkyrimData {
      * @dev Get current junior token supply rate.
      */
     function getCurrentJTSupplyRate() external view returns (uint256 JTSupplyRate) {
-        uint256 currentPeriod = vault.getCurrentPeriod();
-        JTSupplyRate = vault.JTSupplyRatesPerPeriod(currentPeriod);
+        JTSupplyRate = vault.JTSupplyRatesPerPeriod();
     }
 }
 
