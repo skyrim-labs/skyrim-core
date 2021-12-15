@@ -11,7 +11,7 @@ import "hardhat/console.sol";
 /**
  * @title Skyrim invest vault admin contract.
  */
-contract SkyrimInvestVaultAdmin is SkyrimInvestVault {
+contract SkyrimInvestVaultManager is SkyrimInvestVault {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeMathUpgradeable for uint256;
     using SafeMathRatio for uint256;
