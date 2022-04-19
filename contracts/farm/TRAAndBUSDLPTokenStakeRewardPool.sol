@@ -9,17 +9,17 @@ import "./library/Ownable.sol";
 import "./RewardDistributionManager.sol";
 import "./SkyrimToken.sol";
 
-contract TRAAndDAIV2PairTokenWrapper {
+contract TRAAndBUSDV2PairTokenWrapper {
     using SafeMathUpgradeable for uint256;
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    IERC20Upgradeable public TRAAndDAIV2PairToken;
+    IERC20Upgradeable public TRAAndBUSDV2PairToken;
 
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
 
     constructor (address pairTokenAddress) {
-        TRAAndDAIV2PairToken = IERC20Upgradeable(pairTokenAddress);
+        TRAAndBUSDV2PairToken = IERC20Upgradeable(pairTokenAddress);
     }
 
     function totalSupply() public view returns (uint256) {
@@ -31,9 +31,9 @@ contract TRAAndDAIV2PairTokenWrapper {
     }
 
     function stake(uint256 amount) virtual public {
-        uint256 _before = TRAAndDAIV2PairToken.balanceOf(address(this));
-        TRAAndDAIV2PairToken.safeTransferFrom(msg.sender, address(this), amount);
-        uint256 _after = TRAAndDAIV2PairToken.balanceOf(address(this));
+        uint256 _before = TRAAndBUSDV2PairToken.balanceOf(address(this));
+        TRAAndBUSDV2PairToken.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 _after = TRAAndBUSDV2PairToken.balanceOf(address(this));
         uint256 _amount = _after.sub(_before);
 
         _totalSupply = _totalSupply.add(_amount);
@@ -43,11 +43,11 @@ contract TRAAndDAIV2PairTokenWrapper {
     function withdraw(uint256 amount) virtual public {
         _totalSupply = _totalSupply.sub(amount);
         _balances[msg.sender] = _balances[msg.sender].sub(amount);
-        TRAAndDAIV2PairToken.safeTransfer(msg.sender, amount);
+        TRAAndBUSDV2PairToken.safeTransfer(msg.sender, amount);
     }
 }
 
-contract TRAAndDAILPTokenStakeRewardPool is TRAAndDAIV2PairTokenWrapper, RewardDistributionManager {
+contract TRAAndBUSDLPTokenStakeRewardPool is TRAAndBUSDV2PairTokenWrapper, RewardDistributionManager {
     using SafeMathUpgradeable for uint256;
     using MathUpgradeable for uint256;
     using SafeERC20Upgradeable for IERC20Upgradeable;
@@ -82,7 +82,7 @@ contract TRAAndDAILPTokenStakeRewardPool is TRAAndDAIV2PairTokenWrapper, RewardD
         _;
     }
 
-    constructor(address pairToken, address TRAToken_) TRAAndDAIV2PairTokenWrapper(pairToken) {
+    constructor(address pairToken, address TRAToken_) TRAAndBUSDV2PairTokenWrapper(pairToken) {
         TRAToken = SkyrimToken(TRAToken_);
     }
 
