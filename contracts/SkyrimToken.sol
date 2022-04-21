@@ -32,7 +32,7 @@ contract SkyrimToken is
     function initialize(address recipient, uint256 initialSupply) public initializer {
         __ReentrancyGuard_init();
         __Ownable_init();
-        __ERC20_init("SkyrimToken", "TRA");
+        __ERC20_init("SkyrimToken", "SKYRIM");
 
         _mint(recipient, initialSupply);
 
