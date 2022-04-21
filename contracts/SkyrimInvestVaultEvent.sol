@@ -32,8 +32,8 @@ contract SkyrimInvestVaultEvent is SkyrimInvestVaultStorage {
         uint256 investedAmount
     );
 
-    event SettleProfits(TokenType tokenType, uint256 profit, uint256 loss);
-    event InvestByOwner(TokenType tokenType, uint256 investment);
+    event SettleProfits(uint256 period, TokenType tokenType, uint256 profit, uint256 loss);
+    event InvestByOwner(uint256 period, TokenType tokenType, uint256 investment);
 
     event NewSupplyRate(
         TokenType tokenType,

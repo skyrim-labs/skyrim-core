@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
 import "./SkyrimInvestVaultEvent.sol";
 import "./library/SafeMathRatio.sol";
-import "hardhat/console.sol";
+
 contract SkyrimInvestVault is SkyrimInvestVaultEvent {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using SafeMathUpgradeable for uint256;
@@ -26,32 +26,68 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
     ) public initializer {
         require(investStartTime >= block.timestamp, "initialize: Start time has expired!");
         startTime = investStartTime;
+        emit NewStartTime(0, investStartTime);
 
-        currentState = PeriodState.None;
+        currentPeriod = 1;
 
-        STToken = newSTToken;
-        JTToken = newJTToken;
-
-        require(newSkyrimToken.isSkyrimToken(), "This is not a Skyrim token address!");
-        SkyrimToken = newSkyrimToken;
+        _setSeniorToken(newSTToken);
+        _setJuniorToken(newJTToken);
+        _setSkyrimToken(newSkyrimToken);
 
         investedToken = newInvestedToken;
 
         burnedTimes[TokenType.isSeniorToken] = 0;
-        burnedTimes[TokenType.isJuniorToken] = 0;
+        burnedTimes[TokenType.isJuniorToken] = 3;
 
-        investmentPricePerPeriod[TokenType.isSeniorToken] = BASE;
-        investmentPricePerPeriod[TokenType.isJuniorToken] = BASE;
+        investmentPricePerPeriod[TokenType.isSeniorToken][0] = BASE;
+        investmentPricePerPeriod[TokenType.isJuniorToken][0] = BASE;
 
         __ReentrancyGuard_init();
         __Ownable_init();
-
-        emit NewStartTime(0, investStartTime);
     }
 
     //-------------------------------
-    //------- Internal Functions ----
+    //----- Internal Functions ------
     //-------------------------------
+
+    /**
+     * @dev Sets a new senior token.
+     */
+    function _setSeniorToken(ISeniorToken newSTToken) internal {
+        require(newSTToken.isSeniorToken(), "_setSeniorToken: This is not a senior token address!");
+        // Gets old senior token.
+        ISeniorToken oldSTToken = STToken;
+        // Sets new senior token.
+        STToken = newSTToken;
+
+        emit NewSTToken(oldSTToken, newSTToken);
+    }
+
+    /**
+     * @dev Sets a new junior token.
+     */
+    function _setJuniorToken(IJuniorToken newJTToken) internal {
+        require(newJTToken.isJuniorToken(), "_setJuniorToken: This is not a junior token address!");
+        // Gets old junior token.
+        IJuniorToken oldJTToken = JTToken;
+        // Sets new junior token.
+        JTToken = newJTToken;
+
+        emit NewJTToken(oldJTToken, newJTToken);
+    }
+
+    /**
+     * @dev Sets a new Skyrim token.
+     */
+    function _setSkyrimToken(ISkyrimToken newSkyrimToken) internal {
+        require(newSkyrimToken.isSkyrimToken(), "_setSkyrimToken: This is not a Skyrim token address!");
+        // Gets old Skyrim token.
+        ISkyrimToken oldJTToken = SkyrimToken;
+        // Sets new Skyrim token.
+        SkyrimToken = newSkyrimToken;
+
+        emit NewSkyrimToken(oldJTToken, newSkyrimToken);
+    }
 
     /**
      * @dev Caller redeems share token in current price for the invested token.
@@ -64,13 +100,15 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
     ) internal {
         require(
             redeemShareTokenAmount == 0 || redeemUnderlyingAmount == 0,
-            "One of redeemShareTokenAmount or redeemUnderlyingAmount must be zero!"
+            "_redeemInternal: One of redeemShareTokenAmount or redeemUnderlyingAmount must be zero!"
         );
 
         uint256 actualRedeemInvestmentAmount;
         uint256 actualRedeemShareTokenAmount;
 
-        uint256 currentInvestmentPrice = investmentPricePerPeriod[tokenType];
+        TotalInvestmentSnapshot storage totalInvestment = totalInvestmentsInfo[tokenType];
+
+        uint256 currentInvestmentPrice = investmentPricePerPeriod[tokenType][currentPeriod.sub(1)];
 
         if(redeemShareTokenAmount > 0) {
             /**
@@ -92,23 +130,22 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         }
 
         uint256 maxRedeemAmount = getValidInvestmentAmount(tokenType, recipient);
-        console.log("maxRedeemAmount %s", maxRedeemAmount);
-        require(actualRedeemInvestmentAmount <= maxRedeemAmount, "Too much to redeem!");
+        require(actualRedeemInvestmentAmount <= maxRedeemAmount, "_redeemInternal: Too much to redeem!");
+
+        // Update the balance of the share token.
+        AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][recipient];
 
         if (tokenType == TokenType.isSeniorToken) {
             IERC20Upgradeable(address(STToken)).safeTransfer(recipient, actualRedeemInvestmentAmount);
         } else if(tokenType == TokenType.isJuniorToken) {
             IERC20Upgradeable(address(JTToken)).safeTransfer(recipient, actualRedeemInvestmentAmount);
         }
-        TotalInvestmentSnapshot storage totalInvestment = totalInvestmentsInfo[tokenType];
         totalInvestment.unlockedInvestment = totalInvestment.unlockedInvestment.sub(actualRedeemInvestmentAmount);
         totalInvestment.totalInvestmentByUsers = totalInvestment.totalInvestmentByUsers.sub(actualRedeemInvestmentAmount);
         totalInvestment.totalShare = totalInvestment.totalShare.sub(actualRedeemShareTokenAmount);
 
-        // Update the balance of the share token.
-        AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][recipient];
         userShareSnapshot.totalInvestAmount = userShareSnapshot.totalInvestAmount.sub(actualRedeemInvestmentAmount);
-        userShareSnapshot.pendingShareBalance = userShareSnapshot.pendingShareBalance.sub(actualRedeemShareTokenAmount);
+        userShareSnapshot.unlockedShareBalance = userShareSnapshot.unlockedShareBalance.sub(actualRedeemShareTokenAmount);
 
         emit RedeemInvestedToken(tokenType, recipient, actualRedeemShareTokenAmount, actualRedeemInvestmentAmount);
     }
@@ -119,44 +156,130 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
      *      updates the user's share details to the latest state.
      */
     function _updateShareDetail(TokenType tokenType, address who, uint256 investAmount) internal {
-        require(investAmount > 0, "updateShareDetail: investAmount must greater than 0");
-
-        uint256 currentInvestmentPrice = getCurrentInvestmentPriceByToken(tokenType);
-        uint256 investAmountShare = investAmount.rdiv(currentInvestmentPrice);
-        console.log("currentInvestmentPrice %s", currentInvestmentPrice);
-        console.log("investAmount           %s", investAmount);
-        console.log("investAmountShare      %s", investAmountShare);
+        require(investAmount > 0, "_updateShareDetail: investAmount must greater than 0");
 
         AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][who];
-        userShareSnapshot.totalInvestAmount = userShareSnapshot.totalInvestAmount.add(investAmount);
-        userShareSnapshot.pendingShareBalance = userShareSnapshot.pendingShareBalance.add(investAmountShare);
-        userShareSnapshot.pendingInvestAmount = userShareSnapshot.pendingInvestAmount.add(investAmount);
-
-        // Update pool info
         TotalInvestmentSnapshot storage totalInvestment = totalInvestmentsInfo[tokenType];
+        uint256 currentBurnedTimes = burnedTimes[tokenType];
+        uint256 currentInvestmentPrice = getCurrentInvestmentPriceByToken(tokenType);
+        uint256 investAmountShare = investAmount.rdiv(currentInvestmentPrice);
+
+        if(userShareSnapshot.burnedTimes < currentBurnedTimes) {
+            // TODO: Should effect `totalInvestment`
+            // Has lost all investments.
+            userShareSnapshot.pendingInvestAmount = 0;
+            userShareSnapshot.lockedShareBalance = 0;
+            userShareSnapshot.pendingShareBalance = 0;
+            userShareSnapshot.unlockedShareBalance = 0;
+            // Records current burned times.
+            userShareSnapshot.burnedTimes = currentBurnedTimes;
+        }
+
         totalInvestment.pendingInvestment = totalInvestment.pendingInvestment.add(investAmount);
         totalInvestment.totalInvestmentByUsers  = totalInvestment.totalInvestmentByUsers.add(investAmount);
         totalInvestment.totalShare = totalInvestment.totalShare.add(investAmountShare);
-        console.log("totalInvestAmount      %s", userShareSnapshot.totalInvestAmount);
-        console.log("pendingInvestment      %s", totalInvestment.pendingInvestment);
+
+        userShareSnapshot.totalInvestAmount = userShareSnapshot.totalInvestAmount.add(investAmount);
 
         emit Invest(tokenType, msg.sender, who, investAmount);
+
+        // This is the first time that user invests.
+        if (userShareSnapshot.pendingSharePeriod == 0) {
+            // update share amount
+            userShareSnapshot.pendingShareBalance = investAmountShare;
+            // todo: lock for 1 day instead of 1 period
+            userShareSnapshot.pendingSharePeriod = currentPeriod;
+            userShareSnapshot.lockedSharePeriod = currentPeriod.add(1);
+            userShareSnapshot.pendingInvestAmount = investAmount;
+            // Records current burned times.
+            userShareSnapshot.burnedTimes = currentBurnedTimes;
+            // Records current TRA price period.
+            userShareSnapshot.TRAPricePeriod = currentPeriod.sub(1);
+            return;
+        }
+
+        // 2nd investment from user
+        if (userShareSnapshot.pendingSharePeriod == currentPeriod) {
+            // update share amount
+            userShareSnapshot.pendingShareBalance = userShareSnapshot.pendingShareBalance.add(investAmountShare);
+            // Additional funds from users at the same day.
+            userShareSnapshot.pendingInvestAmount = userShareSnapshot.pendingInvestAmount.add(investAmount);
+            // Records current TRA price period.
+            userShareSnapshot.TRAPricePeriod = currentPeriod.sub(1);
+            return;
+        }
+
+        // Unlock user's token if currentPeriod > userShareSnapshot.pendingSharePeriod
+        if (userShareSnapshot.pendingSharePeriod < currentPeriod) {
+            // Invested at latest period
+            if (userShareSnapshot.pendingSharePeriod == currentPeriod.sub(1)) {
+                // Pending investment is under locked period.
+                userShareSnapshot.unlockedShareBalance = userShareSnapshot.unlockedShareBalance.add(userShareSnapshot.lockedShareBalance);
+                userShareSnapshot.lockedShareBalance = userShareSnapshot.pendingShareBalance;
+            } else {
+                // Invested very early. Share locked time has passed.
+                userShareSnapshot.unlockedShareBalance = userShareSnapshot.unlockedShareBalance.add(userShareSnapshot.lockedShareBalance).add(userShareSnapshot.pendingShareBalance);
+                userShareSnapshot.lockedShareBalance = 0;
+            }
+            // Updates user's pending invested token amount.
+            userShareSnapshot.pendingShareBalance = investAmountShare;
+            userShareSnapshot.pendingSharePeriod = currentPeriod;
+            userShareSnapshot.lockedSharePeriod = currentPeriod.add(1);
+            userShareSnapshot.pendingInvestAmount = investAmount;
+        }
+    }
+
+    /**
+     * @notice Callable anytime.
+     * @dev When 2 periods are passed, all investments from user will be unlocked,
+     *      user this method to update user's share value.
+     */
+    function _rebalanceUserShare(TokenType tokenType, address who) internal {
+        AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][who];
+        TotalInvestmentSnapshot storage totalInvestment = totalInvestmentsInfo[tokenType];
+        uint256 currentBurnedTimes = burnedTimes[tokenType];
+
+        if(userShareSnapshot.burnedTimes < currentBurnedTimes) {
+            // TODO: Should effect `totalInvestment`
+            totalInvestment.totalInvestmentByUsers = totalInvestment.totalInvestmentByUsers.sub(userShareSnapshot.pendingInvestAmount);
+            totalInvestment.totalShare = totalInvestment.totalShare.sub(userShareSnapshot.lockedShareBalance).sub(userShareSnapshot.unlockedShareBalance);
+            // Has lost all investments.
+            userShareSnapshot.pendingInvestAmount = 0;
+            userShareSnapshot.lockedShareBalance = 0;
+            userShareSnapshot.unlockedShareBalance = 0;
+            // Records current burned times.
+            userShareSnapshot.burnedTimes = currentBurnedTimes;
+        }
+
+        if (userShareSnapshot.pendingSharePeriod <= currentPeriod.sub(2)) {
+            // Invested very early. Share locked time has passed.
+            userShareSnapshot.unlockedShareBalance = userShareSnapshot.unlockedShareBalance.add(userShareSnapshot.lockedShareBalance).add(userShareSnapshot.pendingShareBalance);
+            userShareSnapshot.lockedShareBalance = 0;
+            userShareSnapshot.pendingShareBalance = 0;
+        }
+
+        if (userShareSnapshot.pendingSharePeriod == currentPeriod.sub(1)) {
+            // locked should go to unlocked
+            userShareSnapshot.unlockedShareBalance = userShareSnapshot.unlockedShareBalance.add(userShareSnapshot.lockedShareBalance);
+            userShareSnapshot.lockedShareBalance = userShareSnapshot.pendingShareBalance;
+            userShareSnapshot.pendingShareBalance = 0;
+        }
     }
 
     /**
      * @dev Calculates the accrued TRA amount and update.
      */
     function _updateTRAReward(TokenType tokenType, address who) internal {
+
         // Get the user's share details.
         AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][who];
 
         uint256 accruedTRA = getAccruedTRARewards(tokenType, who);
-        console.log("accruedTRA %s", accruedTRA);
         if (accruedTRA > 0) {
             userShareSnapshot.TRARewards = userShareSnapshot.TRARewards.add(accruedTRA);
         }
         // Records current TRA price period.
-        // userShareSnapshot.TRAPricePeriod = 1;
+        userShareSnapshot.TRAPricePeriod = currentPeriod.sub(1);
         emit RewardRepaid(tokenType, who, accruedTRA);
     }
 
@@ -203,7 +326,6 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
      * @param amount, amount of senior token to invest.
      */
     function investST(address recipient, uint256 amount) external nonReentrant {
-        require(currentState == PeriodState.Ready, "investST: The investment is not in the subscription period");
         require(recipient != address(0), "investST: Recipient account can not be zero address!");
         require(amount != 0, "investST: Invest amount can not be zero!");
         require(block.timestamp >= startTime, "investST: Invest is not open!");
@@ -217,7 +339,6 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
      * @param amount, amount of junior token to invest.
      */
     function investJT(address recipient, uint256 amount) external nonReentrant {
-        require(currentState == PeriodState.Ready, "investJT: The investment is not in the subscription period");
         require(recipient != address(0), "investJT: Recipient account can not be zero address!");
         require(amount != 0, "investJT: Invest amount can not be zero!");
         require(block.timestamp >= startTime, "investJT: Invest is not open!");
@@ -228,10 +349,18 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
     /**
      * @dev Get all TRA rewards and withdraw all invested token at the same time.
      */
-    function exit(TokenType tokenType) external {
-        require(currentState == PeriodState.End || currentState == PeriodState.Ready, "The investment is not over yet");
+    function exit(TokenType tokenType) external nonReentrant {
+        harvestTRARewards(tokenType);
+
         AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][msg.sender];
-        redeemInvestmentByShareToken(tokenType, userShareSnapshot.pendingShareBalance);
+
+        require(
+            userShareSnapshot.lockedSharePeriod != currentPeriod
+            && userShareSnapshot.pendingSharePeriod != currentPeriod.sub(1),
+            "exit: Has locked share!"
+        );
+
+        redeemInvestmentByShareToken(tokenType, userShareSnapshot.unlockedShareBalance);
     }
 
     /**
@@ -253,9 +382,8 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         // Mint TRA rewars to caller.
         AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][caller];
         uint256 validTRARewards = userShareSnapshot.TRARewards;
-        console.log("validTRARewards %s", validTRARewards);
         if (validTRARewards > 0) {
-            SkyrimToken.mint(caller, validTRARewards);
+            SkyrimToken.mint(caller,validTRARewards);
             // Clear the TRA rewards.
             userShareSnapshot.TRARewards = 0;
         }
@@ -265,8 +393,8 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
      * @dev Redeem invested token by specified share token.
      */
     function redeemInvestmentByShareToken(TokenType tokenType, uint256 redeemShareTokenAmount) public nonReentrant {
-        require(currentState == PeriodState.Ready || currentState == PeriodState.End, "can not redeem");
         harvestAllTRARewards();
+        _rebalanceUserShare(tokenType, msg.sender);
         _redeemInternal(tokenType, msg.sender, redeemShareTokenAmount, 0);
     }
 
@@ -274,12 +402,13 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
      * @dev Redeem specified invested token.
      */
     function redeemInvestment(TokenType tokenType, uint256 reddemInvestmeTokenAmount) public nonReentrant {
-        require(currentState == PeriodState.Ready || currentState == PeriodState.End, "can not redeem");
         harvestAllTRARewards();
+        _rebalanceUserShare(tokenType, msg.sender);
         _redeemInternal(tokenType, msg.sender, 0, reddemInvestmeTokenAmount);
     }
 
     struct ShareLocalVars {
+        uint256 currentPeriod;
         uint256 pendingInvestmentPrice;
         uint256 userBurnedTimes;
         uint256 userTRAPricePeriod;
@@ -307,6 +436,7 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][who];
 
         ShareLocalVars memory _vars;
+
         _vars.userBurnedTimes = userShareSnapshot.burnedTimes;
         _vars.pendingPeriod = userShareSnapshot.pendingSharePeriod;
         _vars.pendingShareBalance = getUserValidPendingShareAmount(tokenType, who);
@@ -314,28 +444,23 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         _vars.unlockedShareBalance = getUserValidUnlockShareAmount(tokenType, who);
 
         // User has not invested any token of this `tokenType`.
-        if (_vars.unlockedShareBalance == 0 && _vars.lockedShareBalance == 0 && _vars.pendingShareBalance == 0) {
+        if (_vars.pendingPeriod == 0 && _vars.unlockedShareBalance == 0 && _vars.lockedShareBalance == 0 && _vars.pendingShareBalance == 0) {
             return 0;
         }
-        
+
         if (hasBurnedAll(tokenType, who)) {
             // Has lost all invested token.
             _vars.latestTRARate = burnedTRARate[tokenType][_vars.userBurnedTimes];
         } else {
-            _vars.latestTRARate = TRAPricePerPeriod[tokenType];
+            _vars.latestTRARate = TRAPricePerPeriod[tokenType][currentPeriod.sub(1)];
         }
-        console.log("_vars.latestTRARate %s", _vars.latestTRARate);
+
         // Calculate TRA rewards based on unlocked share amount and its share period.
         if (_vars.unlockedShareBalance > 0) {
-            // _vars.userTRAPricePeriod = userShareSnapshot.TRAPricePeriod;
-            // _vars.shareTRAPrice = TRAPricePerPeriod[tokenType];
-            _vars.shareRewards = _vars.unlockedShareBalance.rmul(_vars.latestTRARate);
+            _vars.userTRAPricePeriod = userShareSnapshot.TRAPricePeriod;
+            _vars.shareTRAPrice = TRAPricePerPeriod[tokenType][_vars.userTRAPricePeriod];
+            _vars.shareRewards = _vars.unlockedShareBalance.rmul(_vars.latestTRARate.sub(_vars.shareTRAPrice));
             rewards = rewards.add(_vars.shareRewards);
-            console.log("_vars.unlockedShareBalance %s", _vars.unlockedShareBalance);
-            console.log("_vars.latestTRARate %s", _vars.latestTRARate);
-            console.log("_vars.shareTRAPrice %s", _vars.shareTRAPrice);
-            console.log("_vars.shareRewards %s",  _vars.shareRewards);
-            console.log("rewards %s", rewards);
         }
     }
 
@@ -352,11 +477,41 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         rewards = accruedTRARewards.add(userShareSnapshot.TRARewards);
     }
 
+    function getLatestSettlementPeriod() public view returns (uint256) {
+        return currentPeriod.sub(1);
+    }
+
     /**
      * @dev Calculate current investment price for token.
      */
     function getCurrentInvestmentPriceByToken(TokenType _tokenType) public view returns (uint256) {
-        return investmentPricePerPeriod[_tokenType];
+        return investmentPricePerPeriod[_tokenType][getLatestSettlementPeriod()];
+    }
+
+    /**
+     * @dev Calculate current investment price for ST token.
+     */
+    function getCurrentInvestmentPriceForST() public view returns (uint256) {
+        return investmentPricePerPeriod[TokenType.isSeniorToken][getLatestSettlementPeriod()];
+    }
+
+    /**
+     * @dev Calculate current investment price for JT token.
+     */
+    function getCurrentInvestmentPriceForJT() public view returns (uint256) {
+        return investmentPricePerPeriod[TokenType.isJuniorToken][getLatestSettlementPeriod()];
+    }
+
+    /**
+     * @notice Only unlocked share can be withdrawn.
+     * @dev Calculate how many senior token that a user can withdraw now and whether he has
+     *      locked share token.
+     */
+    function getValidInvestmentShareAmount(
+        TokenType tokenType,
+        address who
+    ) public view returns (uint256) {
+        return getUserValidUnlockShareAmount(tokenType, who);
     }
 
     /**
@@ -366,7 +521,9 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         TokenType tokenType,
         address who
     ) public view returns (uint256) {
-        return 2;
+        AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][who];
+        // todo
+        return currentPeriod.sub(userShareSnapshot.pendingSharePeriod);
     }
 
     /**
@@ -446,20 +603,15 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         }
 
         AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][who];
+        if (shouldUnlockNoneShares(tokenType, who)) {
+            return userShareSnapshot.unlockedShareBalance;
+        }
 
-        console.log("userShareSnapshot.unlockedShareBalance %s", userShareSnapshot.unlockedShareBalance);
-        console.log("userShareSnapshot.lockedShareBalance %s", userShareSnapshot.lockedShareBalance);
-        console.log("userShareSnapshot.pendingShareBalance %s", userShareSnapshot.pendingShareBalance);
+        if (shouldUnlockUserLockedShares(tokenType, who)) {
+            return userShareSnapshot.unlockedShareBalance.add(userShareSnapshot.lockedShareBalance);
+        }
 
-        // if (shouldUnlockNoneShares(tokenType, who)) {
-        //     return userShareSnapshot.unlockedShareBalance;
-        // }
-
-        // if (shouldUnlockUserLockedShares(tokenType, who)) {
-        //     return userShareSnapshot.unlockedShareBalance.add(userShareSnapshot.lockedShareBalance);
-        // }
-
-        if (currentState == PeriodState.End) {
+        if (shouldUnlockAllUserShares(tokenType, who)) {
             return userShareSnapshot.unlockedShareBalance.add(userShareSnapshot.lockedShareBalance).add(userShareSnapshot.pendingShareBalance);
         }
 
@@ -475,8 +627,7 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         TokenType tokenType,
         address who
     ) public view returns (uint256 validInvestmentAmount) {
-        AccountShareSnapshot storage userShareSnapshot = accountInvestments[tokenType][who];
-        uint256 shareAmount = userShareSnapshot.pendingShareBalance;
+        uint256 shareAmount = getValidInvestmentShareAmount(tokenType, who);
         uint256 sharePrice = getCurrentInvestmentPriceByToken(tokenType);
 
         // Calculate amount: valid share amount * price.
@@ -532,6 +683,55 @@ contract SkyrimInvestVault is SkyrimInvestVaultEvent {
         } else {
             burnedAll = false;
         }
+    }
+
+    /**
+     * @dev Get current period.
+     */
+    function getCurrentPeriod() external view returns (uint256) {
+        return currentPeriod;
+    }
+
+    /**
+     * @dev Total investments by users, including ST Token and JT Token.
+     */
+    function totalInvest() external view returns (uint256 total) {
+        // Total investments by users with ST Token.
+        total = total.add(totalInvestByST());
+        // Total investments by users with JT Token.
+        total = total.add(totalInvestByJT());
+    }
+
+    /**
+     * @dev Total investments by users with ST Token.
+     */
+    function totalInvestByST() public view returns (uint256 totalSTInvestedAmount) {
+        TotalInvestmentSnapshot storage totalSTInvestment = totalInvestmentsInfo[TokenType.isSeniorToken];
+        totalSTInvestedAmount = totalSTInvestment.totalInvestmentByUsers;
+    }
+
+    /**
+     * @dev Total investments by users with JT Token.
+     */
+    function totalInvestByJT() public view returns (uint256 totalJTInvestedAmount) {
+        TotalInvestmentSnapshot storage totalSTInvestment = totalInvestmentsInfo[TokenType.isJuniorToken];
+        totalJTInvestedAmount = totalSTInvestment.totalInvestmentByUsers;
+    }
+
+    /**
+     * @dev Invested ST Token amount by users.
+     */
+    function investAmountByST(address who) external view returns (uint256 STInvestedAmount) {
+        AccountShareSnapshot storage userShareSnapshot = accountInvestments[TokenType.isSeniorToken][who];
+        STInvestedAmount = userShareSnapshot.totalInvestAmount;
+    }
+
+    /**
+     * @dev Invested JT Token amount by users.
+     */
+    function investAmountByJT(address who) external view returns (uint256 JTInvestedAmount) {
+        AccountShareSnapshot storage userShareSnapshot = accountInvestments[TokenType.isJuniorToken][who];
+        JTInvestedAmount = userShareSnapshot.totalInvestAmount;
     }
 
     function getAPY(TokenType _tokenType) external view returns(uint256) {
