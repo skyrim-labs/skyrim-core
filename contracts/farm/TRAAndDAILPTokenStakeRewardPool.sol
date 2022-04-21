@@ -5,9 +5,9 @@ pragma solidity >=0.7.0 <0.8.0;
 import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/math/MathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
-import "./library/Ownable.sol";
-import "./RewardDistributionManager.sol";
-import "./SkyrimToken.sol";
+import "../library/Ownable.sol";
+import "../RewardDistributionManager.sol";
+import "../SkyrimToken.sol";
 
 contract TRAAndDAIV2PairTokenWrapper {
     using SafeMathUpgradeable for uint256;
