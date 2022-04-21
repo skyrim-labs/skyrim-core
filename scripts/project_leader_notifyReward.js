@@ -14,7 +14,7 @@ module.exports = async function(callback) {
 
         const path = __dirname + '/../build/contracts';
         
-        data = fs.readFileSync(`${path}/dTrancheToken.json`, 'utf8');
+        data = fs.readFileSync(`${path}/SkyrimToken.json`, 'utf8');
         dataJson = JSON.parse(data);
         TRATokenInstance = new web3.eth.Contract(dataJson.abi, deployedContractsAddress["TRAAddress"]);
 

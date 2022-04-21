@@ -51,20 +51,20 @@ async function main() {
 
   const vaultAddress = configs.vault;
   // We get the contract to deploy
-  let vaultFactory = await ethers.getContractFactory("dTrancheInvestVaultAdmin");
-  const dTrancheVault = vaultFactory.attach(vaultAddress);
+  let vaultFactory = await ethers.getContractFactory("SkyrimInvestVaultAdmin");
+  const vault = vaultFactory.attach(vaultAddress);
 
   let currentJTBalance = await JTToken.balanceOf(deployer.address);
   console.log("currentJTBalance", currentJTBalance.toString());
 
-  let currentperiod = await dTrancheVault.getCurrentPeriod();
+  let currentperiod = await vault.getCurrentPeriod();
   console.log("currentperiod is: ", currentperiod.toString());
 
-  let startTime1 = await dTrancheVault.startTime();
-  // let lockTime = await dTrancheVault.lockTime();
+  let startTime1 = await vault.startTime();
+  // let lockTime = await vault.lockTime();
   console.log("startTime1", startTime1.toString());
   // console.log("lockTime", lockTime.toString());
-  // console.log("vault period", (await dTrancheVault.currentPeriod()).toString())
+  // console.log("vault period", (await vault.currentPeriod()).toString())
   // return;
   // console.log("startTime1.div(lockTime)", (startTime1.div(lockTime)).toString());
 
@@ -72,16 +72,16 @@ async function main() {
   let profits = ethers.utils.parseEther("10");
   let investmetns = ethers.utils.parseEther("1");
    // !!!For the first time, profits should be 0.
-  // await dTrancheVault.settleProfitsByOwner([0, 0], [0, 0]);
-  await dTrancheVault.settleProfitsByOwner(['10000000000000000000', '10000000000000000000'], [0, 0]);  // 10
-  // await dTrancheVault.settleProfitsByOwner(['10000000000000000000', 0], [0, 0]);  // 10
-  // await dTrancheVault.settleProfitsByOwner([0, 0], ['0', '9000000000000000000'], ); // 9
-  // await dTrancheVault.settleProfitsByOwner([0, 0], ['10000000000000000000', '10000000000000000000'], ); // [10, 10]
-  await dTrancheVault.investByOwner([0, investmetns]);
+  // await vault.settleProfitsByOwner([0, 0], [0, 0]);
+  await vault.settleProfitsByOwner(['10000000000000000000', '10000000000000000000'], [0, 0]);  // 10
+  // await vault.settleProfitsByOwner(['10000000000000000000', 0], [0, 0]);  // 10
+  // await vault.settleProfitsByOwner([0, 0], ['0', '9000000000000000000'], ); // 9
+  // await vault.settleProfitsByOwner([0, 0], ['10000000000000000000', '10000000000000000000'], ); // [10, 10]
+  await vault.investByOwner([0, investmetns]);
 
-  let investor = "0xCea5E66bec5193e5eC0b049a3Fe5d7Dd896fD480"
-  await getUserInfo(dTrancheVault, investor);
-  await getVaultInfo(dTrancheVault);
+  // let investor = "0x..."
+  // await getUserInfo(vault, investor);
+  // await getVaultInfo(vault);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

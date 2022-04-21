@@ -11,17 +11,17 @@ const commonConfigs = require("../config/contractAddress.js");
 const currentNet = network.name;
 const configs = commonConfigs[currentNet];
 
-async function deploydTrancheToken(SkyrimAddr, recipient, initalSupply) {
+async function deployProtocolToken(SkyrimAddr, recipient, initalSupply) {
   let Skyrim;
   if (!SkyrimAddr) {
-    console.log("Deploy a new dTranche Token!");
+    console.log("Deploy a new Protocol Token!");
     Skyrim = await deployProtocolToken(recipient, initalSupply);
   } else {
-    console.log("dTranche Token has been deployed!");
+    console.log("Protocol Token has been deployed!");
     let SkyrimFactory = await ethers.getContractFactory("SkyrimToken");
     Skyrim = SkyrimFactory.attach(SkyrimAddr);
   }
-  console.log("dTranche token deployed to: ", Skyrim.address);
+  console.log("Protocol token deployed to: ", Skyrim.address);
   return Skyrim;
 }
 
@@ -42,7 +42,7 @@ async function main() {
   const initalSupply = ethers.utils.parseEther("1000000");
 
   const SkyrimAddress = configs.Skyrim;
-  await deploydTrancheToken(SkyrimAddress, recipient, initalSupply);
+  await deployProtocolToken(SkyrimAddress, recipient, initalSupply);
 
 }
 

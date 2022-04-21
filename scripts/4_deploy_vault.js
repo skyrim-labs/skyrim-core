@@ -5,7 +5,7 @@
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
 const { network } = require("hardhat");
-const { deploydTrancheVaultAdmin } = require("../test/helpers/fixture.js");
+const { deploydVaultAdmin } = require("../test/helpers/fixture.js");
 const { sleep } = require("../test/helpers/utils.js");
 const commonConfigs = require("../config/contractAddress.js");
 
@@ -15,31 +15,17 @@ const configs = commonConfigs[currentNet];
 let STToken, JTToken, Skyrim;
 
 async function deploydVault(vaultAddress, startTime, lockTime, STTokenAddr, JTTokenAddr, SkyrimTokenAddr, investTokenAddr) {
-  let dtrancheVault;
+  let vault;
   if (!vaultAddress) {
-    console.log("Deploy a new dTranche vault!");
-    dtrancheVault = await deploydTrancheVaultAdmin(startTime, 300, STTokenAddr, JTTokenAddr, SkyrimTokenAddr, investTokenAddr);
+    console.log("Deploy a new Skyrim vault!");
+    vault = await deploydVaultAdmin(startTime, 300, STTokenAddr, JTTokenAddr, SkyrimTokenAddr, investTokenAddr);
   } else {
-    console.log("dTranche vault has been deployed!");
-    let vaultFactory = await ethers.getContractFactory("dTrancheInvestVaultAdmin");
-    dtrancheVault = vaultFactory.attach(vaultAddress);
+    console.log("Skyrim vault has been deployed!");
+    let vaultFactory = await ethers.getContractFactory("SkyrimInvestVaultAdmin");
+    vault = vaultFactory.attach(vaultAddress);
   }
-  console.log("dTranche vault deployed to: ", dtrancheVault.address);
-  return dtrancheVault;
-}
-
-async function deployData(dTrancheDataAddress, dTrancheVaultAddress) {
-  let dtrancheData;
-  if (!dTrancheDataAddress) {
-    console.log("Deploy a new dTranche data!");
-    dtrancheData = await deploydTrancheData(dTrancheVaultAddress);
-  } else {
-    console.log("dTranche data has been deployed!");
-    let dataFactory = await ethers.getContractFactory("dTrancheData");
-    dtrancheData = dataFactory.attach(dTrancheDataAddress);
-  }
-  console.log("dTranche data deployed to: ", dtrancheData.address);
-  return dtrancheData;
+  console.log("Skyrim vault deployed to: ", vault.address);
+  return vault;
 }
 
 async function main() {
@@ -90,7 +76,7 @@ async function main() {
 
   const SkyrimTokenAddr = configs.Skyrim;
   if (!SkyrimTokenAddr) {
-    console.log("Please set dtranche token address first!");
+    console.log("Please set skyrim token address first!");
     return;
   } else {
     let SkyrimFactory = await ethers.getContractFactory("SkyrimToken");
@@ -107,36 +93,36 @@ async function main() {
 
   const vaultAddress = configs.vault;
   // We get the contract to deploy
-  const dTrancheVault = await deploydVault(vaultAddress, startTime, lockedTime, STTokenAddr, JTTokenAddr, SkyrimTokenAddr, investTokenAddr);
+  const vault = await deploydVault(vaultAddress, startTime, lockedTime, STTokenAddr, JTTokenAddr, SkyrimTokenAddr, investTokenAddr);
 
   // Set vault contract in the senior token.
-  let hasSetVaultInST = await STToken.isVault(dTrancheVault.address);
+  let hasSetVaultInST = await STToken.isVault(vault.address);
   console.log("Has set valut in the ST token", hasSetVaultInST, "\n");
   if (!hasSetVaultInST) {
-    await STToken.setVault(dTrancheVault.address);
+    await STToken.setVault(vault.address);
   }
 
   // Set vault contract in the junior token.
-  let hasSetVaultInJT = await JTToken.isVault(dTrancheVault.address);
+  let hasSetVaultInJT = await JTToken.isVault(vault.address);
   console.log("Has set vault in the JT token", hasSetVaultInJT, "\n");
   if (!hasSetVaultInJT) {
-    await JTToken.setVault(dTrancheVault.address);
+    await JTToken.setVault(vault.address);
   }
 
-  // Set vault contract as minter in the dTranche token.
-  let hasSetVaultInSkyrim = await Skyrim.isMinter(dTrancheVault.address);
+  // Set vault contract as minter in the skyrim token.
+  let hasSetVaultInSkyrim = await Skyrim.isMinter(vault.address);
   console.log("Has set vault in the Skyrim token", hasSetVaultInSkyrim, "\n");
   if (!hasSetVaultInSkyrim) {
-    await Skyrim.addMinter(dTrancheVault.address);
+    await Skyrim.addMinter(vault.address);
   }
-  let hasSetVaultInSkyrimAfter = await Skyrim.isMinter(dTrancheVault.address);
+  let hasSetVaultInSkyrimAfter = await Skyrim.isMinter(vault.address);
   console.log("Has set vault in the Skyrim token after", hasSetVaultInSkyrimAfter, "\n");
 
   // Set senior token supply rate.
-  let seniorTokenSupplyRate = await dTrancheVault.getCurrentSTSupplyRate();
+  let seniorTokenSupplyRate = await vault.getCurrentSTSupplyRate();
   console.log("Current senior token supply rate is: ", seniorTokenSupplyRate.toString());
   if (seniorTokenSupplyRate.toString() == '0') {
-    await dTrancheVault.setSeniorTokenSupplyRate(STSupplyRate);
+    await vault.setSeniorTokenSupplyRate(STSupplyRate);
   }
 }
 
